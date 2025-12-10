@@ -1,16 +1,24 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import seaborn as sns
 from sklearn.linear_model import LinearRegression
+import os
+# plt.ion()
 
-data_2019 = pd.read_csv("./2019data6.csv")
-data_2022 = pd.read_csv("./2022data6.csv")
 
-#statistical insights 
-data_2019.describe()
-data_2022.describe()
-data_2019.info()
-data_2022.info()
+# Get the current script's directory (where the data files are assumed to be)
+current_dir = os.getcwd()
+
+# Filenames must match exactly the original names you provided
+file_2019 = os.path.join(current_dir, "2019data6.csv")
+file_2022 = os.path.join(current_dir, "2022data6.csv")
+
+# Load the datasets
+data_2019 = pd.read_csv(file_2019, parse_dates=['Date'])
+data_2022 = pd.read_csv(file_2022, parse_dates=['Date and time'])
+
+
 
 ## QUESTION 3.1 B
 # Define scrfft function
