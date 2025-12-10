@@ -7,22 +7,55 @@ import os
 # plt.ion()
 
 
-# Get the current script's directory (where the data files are assumed to be)
-current_dir = os.getcwd()
+# # Get the current script's directory (where the data files are assumed to be)
+# current_dir = os.getcwd()
 
-# Filenames must match exactly the original names you provided
-file_2019 = os.path.join(current_dir, "2019data6.csv")
-file_2022 = os.path.join(current_dir, "2022data6.csv")
+# # Filenames must match exactly the original names you provided
+# file_2019 = os.path.join(current_dir, "2019data6.csv")
+# file_2022 = os.path.join(current_dir, "2022data6.csv")
 
-# Load the datasets
-data_2019 = pd.read_csv(file_2019, parse_dates=['Date'])
-data_2022 = pd.read_csv(file_2022, parse_dates=['Date and time'])
+# # Load the datasets
+# data_2019 = pd.read_csv(file_2019, parse_dates=['Date'])
+# data_2022 = pd.read_csv(file_2022, parse_dates=['Date and time'])
 
 
 
 ## QUESTION 3.1 B
 # Define scrfft function
 def scrfft(xdata, ydata):
+    """
+    Compute a uniformly sampled interpolation of input data and return its real Fourier coefficients.
+
+    This function:
+    1. Sorts the input data by x-values.
+    2. Creates an evenly spaced x‑grid spanning the same domain as the input.
+    3. Interpolates y-values onto this uniform grid.
+    4. Computes the real-valued Fast Fourier Transform (rFFT) of the interpolated signal.
+    5. Returns the frequency components and the corresponding cosine (a) and sine (b) coefficients.
+
+    Parameters
+    ----------
+    xdata : array_like
+        Input x-values. These may be unevenly spaced and are sorted internally.
+    ydata : array_like
+        Input y-values corresponding to each element of `xdata`.
+
+    Returns
+    -------
+    f : ndarray
+        Array of frequency values associated with the Fourier coefficients.
+    a : ndarray
+        Cosine (real) Fourier coefficients of the signal.
+    b : ndarray
+        Sine (negative imaginary) Fourier coefficients of the signal.
+
+    Notes
+    -----
+    - The input data is interpolated to a uniform grid because FFT requires uniform sampling.
+    - The DC (zero-frequency) term is halved to follow the standard Fourier series normalization.
+    - The function returns only positive frequencies due to the use of rFFT.
+
+    """
     sdata = np.argsort(xdata)
     xdatas = xdata[sdata]
     ydatas = ydata[sdata]
@@ -45,6 +78,36 @@ def scrfft(xdata, ydata):
 # Define Fourier smoothing
 # -------------------------------
 def fourier_smooth(x, y, terms=8):
+    """
+    Smooth a signal using a truncated Fourier series reconstruction.
+
+    This function performs Fourier smoothing by:
+    1. Computing the real Fourier series coefficients of the input data via `scrfft`.
+    2. Reconstructing the signal using the specified number of low-frequency terms (default: 8).
+    3. Returning a smoothed version of the original signal.
+
+    Parameters
+    ----------
+    x : array_like
+        Input x-values (not necessarily uniformly spaced).
+    y : array_like
+        Input y-values corresponding to each x-value.
+    terms : int, optional
+        Number of Fourier terms to use in the smoothing. Default is 8.
+
+    Returns
+    -------
+    x_smooth : ndarray
+        Evenly spaced x-values used for the smoothed signal.
+    y_smooth : ndarray
+        Smoothed y-values reconstructed from the truncated Fourier series.
+
+    Notes
+    -----
+    - This function depends on `scrfft` to compute Fourier coefficients.
+    - Higher `terms` will include more frequency components and produce a smoother fit that follows the original data more closely.
+    - Too many terms may reintroduce noise, while too few may oversimplify the signal.
+    """
     f, a, b = scrfft(x, y)
     xmin, xmax = np.min(x), np.max(x)
     ndata = len(x)
@@ -54,95 +117,95 @@ def fourier_smooth(x, y, terms=8):
         y_smooth += a[i] * np.cos(2 * np.pi * f[i] * x_smooth) + b[i] * np.sin(2 * np.pi * f[i] * x_smooth)
     return x_smooth, y_smooth
 
-# -------------------------------
-# Process 2019 data
-# -------------------------------
-data_2019["Total Passengers"] = (
-    data_2019["Bus pax number peak"] +
-    data_2019["Bus pax number offpeak"] +
-    data_2019["Metro pax number peak"] +
-    data_2019["Metro pax number offpeak"]
-)
-data_2019["Date"] = pd.to_datetime(data_2019["Date"])
-data_2019["Day of Year"] = data_2019["Date"].dt.dayofyear
-data_2019_sorted = data_2019.sort_values("Day of Year")
-x_2019 = data_2019_sorted["Day of Year"].values
-y_2019 = data_2019_sorted["Total Passengers"].values
+def plot_fourier_smoothed_passengers(data_2019, data_2022):
+    """
+    Generate Figure 1: Compare 2019 and 2022 public transport passenger counts over the year
+    using Fourier smoothing.
 
-# -------------------------------
-# Process 2022 data using weighted trip counts
-# -------------------------------
-data_2022["Date and time"] = pd.to_datetime(data_2022["Date and time"])
-data_2022["Day of Year"] = data_2022["Date and time"].dt.dayofyear
+    This function:
+    - Processes daily total passengers for 2019 from bus and metro data.
+    - Estimates daily passenger counts for 2022 using trip proportions and known yearly totals.
+    - Applies Fourier smoothing to both datasets.
+    - Plots scatter data and smoothed curves for both years.
 
-# Count trips by day and mode
-daily_trips = data_2022.groupby(["Day of Year", "Mode"]).size().unstack(fill_value=0)
+    Parameters
+    ----------
+    data_2019 : pd.DataFrame
+        Dataset with 2019 public transport data.
+    data_2022 : pd.DataFrame
+        Dataset with 2022 public transport data, including 'Mode' column.
 
-# Total trips per mode (observed)
-total_trips_year = daily_trips.sum()
+    Returns
+    -------
+    None
+        Displays the plot comparing smoothed and raw daily passenger counts for 2019 and 2022.
+    """
+    # Process 2019 data
+    data_2019["Total Passengers"] = (
+        data_2019["Bus pax number peak"] +
+        data_2019["Bus pax number offpeak"] +
+        data_2019["Metro pax number peak"] +
+        data_2019["Metro pax number offpeak"]
+    )
+    data_2019["Date"] = pd.to_datetime(data_2019["Date"])
+    data_2019["Day of Year"] = data_2019["Date"].dt.dayofyear
+    data_2019_sorted = data_2019.sort_values("Day of Year")
+    x_2019 = data_2019_sorted["Day of Year"].values
+    y_2019 = data_2019_sorted["Total Passengers"].values
 
-# Given yearly total passengers (real)
-total_passengers_year = {
-    'Bus': 39537756,
-    'Tram': 0,
-    'Metro': 7064380
-}
+    # Process 2022 data
+    data_2022["Date and time"] = pd.to_datetime(data_2022["Date and time"])
+    data_2022["Day of Year"] = data_2022["Date and time"].dt.dayofyear
 
-# Estimate daily passengers per mode (with safe handling)
-for mode in ['Bus', 'Tram', 'Metro']:
-    if mode in daily_trips.columns:
-        daily_trips[mode + " Passengers"] = (
-            daily_trips[mode] / total_trips_year[mode] * total_passengers_year[mode]
-        )
-    else:
-        daily_trips[mode + " Passengers"] = 0
+    daily_trips = data_2022.groupby(["Day of Year", "Mode"]).size().unstack(fill_value=0)
+    total_trips_year = daily_trips.sum()
+    total_passengers_year = {
+        'Bus': 39537756,
+        'Tram': 0,
+        'Metro': 7064380
+    }
 
-# Compute total daily passengers
-daily_trips['Total Passengers'] = daily_trips[['Bus Passengers', 'Tram Passengers', 'Metro Passengers']].sum(axis=1)
-daily_trips = daily_trips.reset_index()
-daily_trips_sorted = daily_trips.sort_values("Day of Year")
+    for mode in ['Bus', 'Tram', 'Metro']:
+        if mode in daily_trips.columns:
+            daily_trips[mode + " Passengers"] = (
+                daily_trips[mode] / total_trips_year[mode] * total_passengers_year[mode]
+            )
+        else:
+            daily_trips[mode + " Passengers"] = 0
 
-x_2022 = daily_trips_sorted["Day of Year"].values
-y_2022 = daily_trips_sorted["Total Passengers"].values
+    daily_trips['Total Passengers'] = daily_trips[['Bus Passengers', 'Tram Passengers', 'Metro Passengers']].sum(axis=1)
+    daily_trips = daily_trips.reset_index()
+    daily_trips_sorted = daily_trips.sort_values("Day of Year")
 
-# -------------------------------
-# Apply Fourier smoothing
-# -------------------------------
-x2019_smooth, y2019_smooth = fourier_smooth(x_2019, y_2019)
-x2022_smooth, y2022_smooth = fourier_smooth(x_2022, y_2022)
+    x_2022 = daily_trips_sorted["Day of Year"].values
+    y_2022 = daily_trips_sorted["Total Passengers"].values
 
-# -------------------------------
-# Create x-values for plotting
-# -------------------------------
-x_days_2019 = x_2019
-x_days_2022 = x_2022
+    # Apply Fourier smoothing
+    x2019_smooth, y2019_smooth = fourier_smooth(x_2019, y_2019)
+    x2022_smooth, y2022_smooth = fourier_smooth(x_2022, y_2022)
 
-x_smooth_days_2019 = np.linspace(x_days_2019.min(), x_days_2019.max(), len(y2019_smooth))
-x_smooth_days_2022 = np.linspace(x_days_2022.min(), x_days_2022.max(), len(y2022_smooth))
+    # Smoothed x values
+    x_smooth_days_2019 = np.linspace(x_2019.min(), x_2019.max(), len(y2019_smooth))
+    x_smooth_days_2022 = np.linspace(x_2022.min(), x_2022.max(), len(y2022_smooth))
 
-# -------------------------------
-# Plot 
-# -------------------------------
-fig, ax = plt.subplots(figsize=(16, 8))
+    # Plot
+    fig, ax = plt.subplots(figsize=(16, 8))
 
-# 2019 data
-ax.scatter(x_days_2019, y_2019, s=10, label="2019 Scatter", alpha=0.6, color='blue')
-ax.plot(x_smooth_days_2019, y2019_smooth, label="2019 Smoothed (Fourier)", linewidth=2, color='blue')
+    ax.scatter(x_2019, y_2019, s=10, label="2019 Scatter", alpha=0.6, color='blue')
+    ax.plot(x_smooth_days_2019, y2019_smooth, label="2019 Smoothed (Fourier)", linewidth=2, color='blue')
 
-# 2022 data
-ax.scatter(x_days_2022, y_2022, s=10, label="2022 Scatter", alpha=0.6, color='orange')
-ax.plot(x_smooth_days_2022, y2022_smooth, label="2022 Smoothed (Fourier)", linewidth=2, color='orange')
+    ax.scatter(x_2022, y_2022, s=10, label="2022 Scatter", alpha=0.6, color='orange')
+    ax.plot(x_smooth_days_2022, y2022_smooth, label="2022 Smoothed (Fourier)", linewidth=2, color='orange')
 
-# Customize plot
-ax.set_title("Figure 1: Daily Public Transport Passengers with Fourier Smoothed Lines (Raw Values)\nStudent ID: 24157966", fontsize=16)
-ax.set_xlabel("Day of the Year")
-ax.set_ylabel("Passenger Count")
-ax.set_xlim(1, 366)
-ax.legend()
-ax.grid(True)
+    ax.set_title("Figure 1: Daily Public Transport Passengers with Fourier Smoothed Lines (Raw Values)\nStudent ID: 24157966", fontsize=16)
+    ax.set_xlabel("Day of the Year")
+    ax.set_ylabel("Passenger Count")
+    ax.set_xlim(1, 366)
+    ax.legend()
+    ax.grid(True)
 
-plt.tight_layout()
-plt.show()
+    plt.tight_layout()
+    plt.show()
 
 # -----------------------------------------------------------------------------------------------------------------------------------
 ## QUESTION 3.1 C
@@ -150,6 +213,49 @@ plt.show()
 def plot_bar_avgpax_weekdays(data_2019, data_2022, 
                                           X_spring_2019, Y_summer_2019, Z_autumn_2019,
                                           X_spring_2022, Y_summer_2022, Z_autumn_2022):
+    """
+    Generate a bar plot comparing the average number of public transport passengers per weekday 
+    for the years 2019 and 2022, along with seasonal journey percentages.
+
+    This function:
+    - Processes raw 2019 and 2022 transport datasets.
+    - Calculates the average number of passengers per weekday for both years.
+    - Uses actual passenger counts for 2019.
+    - Estimates 2022 passenger counts using proportional scaling from known total yearly values.
+    - Displays a side-by-side bar plot for weekday averages.
+    - Annotates the plot with spring/summer/autumn percentages for both years and student ID.
+
+    Parameters
+    ----------
+    data_2019 : pd.DataFrame
+        DataFrame containing 2019 public transport data, with date and passenger columns for Bus and Metro.
+    data_2022 : pd.DataFrame
+        DataFrame containing 2022 public transport data, with datetime and mode columns.
+    X_spring_2019 : float
+        Percentage of journeys made in spring (March–May) in 2019.
+    Y_summer_2019 : float
+        Percentage of journeys made in summer (June–August) in 2019.
+    Z_autumn_2019 : float
+        Percentage of journeys made in autumn (September–November) in 2019.
+    X_spring_2022 : float
+        Percentage of journeys made in spring (March–May) in 2022.
+    Y_summer_2022 : float
+        Percentage of journeys made in summer (June–August) in 2022.
+    Z_autumn_2022 : float
+        Percentage of journeys made in autumn (September–November) in 2022.
+
+    Returns
+    -------
+    None
+        Displays a single-panel bar chart comparing weekday passenger averages between 2019 and 2022.
+    
+    Notes
+    -----
+    - Passenger numbers for 2022 are scaled estimates based on the number of mode-specific trips
+      and known total yearly passengers for Bus, Tram, and Metro.
+    - The figure includes a boxed annotation showing seasonal percentages and student ID.
+    - This figure is intended for use as Figure 2 in a transport analysis report.
+    """
     # Convert dates
     data_2019['Date'] = pd.to_datetime(data_2019['Date'])
     data_2022['Date and time'] = pd.to_datetime(data_2022['Date and time'])
@@ -305,6 +411,50 @@ def plot_metro_linear_fit(df):
 ## QUESTION 3.2
 # -----------------------------------------------------------------------------------------------------------------------------------
 def transport_type_seasonwise_plot(data_2019, data_2022):
+    """
+    Generate a bar plot comparing the percentage of journeys by transport mode in 2019 and 2022,
+    and calculate the seasonal distribution of journeys (spring, summer, autumn) for both years.
+
+    This function:
+    - Computes the share of journeys made by Bus, Tram, Train, and Metro in both 2019 and 2022.
+    - For 2019: Calculates total passenger numbers from peak/off-peak values.
+    - For 2022: Uses mode counts to estimate journey share.
+    - Calculates the percentage of total journeys made during spring, summer, and autumn months.
+    - Displays a bar chart showing mode share percentages for each year.
+
+    Parameters
+    ----------
+    data_2019 : pd.DataFrame
+        Public transport dataset for 2019. Must include columns:
+        - 'Date', 'Bus pax number peak', 'Bus pax number offpeak',
+          'Metro pax number peak', 'Metro pax number offpeak'.
+    data_2022 : pd.DataFrame
+        Public transport dataset for 2022. Must include columns:
+        - 'Date and time', 'Mode' (with values like 'Bus', 'Metro', etc.).
+
+    Returns
+    -------
+    dict
+        Dictionary containing the percentage of total journeys made in each season:
+        {
+            "Spring (%) for 2019": float,
+            "Summer (%) for 2019": float,
+            "Autumn (%) for 2019": float,
+            "Spring (%) for 2022": float,
+            "Summer (%) for 2022": float,
+            "Autumn (%) for 2022": float
+        }
+
+    Notes
+    -----
+    - The bar chart shows transport mode share for 2019 and 2022.
+    - Seasonal journey distribution is based on calendar months:
+        * Spring: March–May
+        * Summer: June–August
+        * Autumn: September–November
+    - This figure is labeled as "Figure 4" and includes the student ID in the chart.
+
+    """
     # Process 2019 data
     data_2019['Date'] = pd.to_datetime(data_2019['Date'])
     data_2019['Total_Bus'] = data_2019['Bus pax number peak'] + data_2019['Bus pax number offpeak']
@@ -387,18 +537,56 @@ def transport_type_seasonwise_plot(data_2019, data_2022):
         "Autumn (%) for 2022": round(Z_autumn_2022, 2)
     }
 
-seasonal_percentages = transport_type_seasonwise_plot(data_2019, data_2022)
-plot_metro_linear_fit(data_2022)
-plot_bar_avgpax_weekdays(
-    data_2019,
-    data_2022,
-    X_spring_2019=seasonal_percentages["Spring (%) for 2019"],
-    Y_summer_2019=seasonal_percentages["Summer (%) for 2019"],
-    Z_autumn_2019=seasonal_percentages["Autumn (%) for 2019"],
-    X_spring_2022=seasonal_percentages["Spring (%) for 2022"],
-    Y_summer_2022=seasonal_percentages["Summer (%) for 2022"],
-    Z_autumn_2022=seasonal_percentages["Autumn (%) for 2022"]
-)
+# seasonal_percentages = transport_type_seasonwise_plot(data_2019, data_2022)
+# plot_metro_linear_fit(data_2022)
+# plot_bar_avgpax_weekdays(
+#     data_2019,
+#     data_2022,
+#     X_spring_2019=seasonal_percentages["Spring (%) for 2019"],
+#     Y_summer_2019=seasonal_percentages["Summer (%) for 2019"],
+#     Z_autumn_2019=seasonal_percentages["Autumn (%) for 2019"],
+#     X_spring_2022=seasonal_percentages["Spring (%) for 2022"],
+#     Y_summer_2022=seasonal_percentages["Summer (%) for 2022"],
+#     Z_autumn_2022=seasonal_percentages["Autumn (%) for 2022"]
+# )
+
+def main():
+    # Get the current script's directory (where the data files are assumed to be)
+    current_dir = os.getcwd()
+
+    # Filenames must match exactly the original names you provided
+    file_2019 = os.path.join(current_dir, "2019data6.csv")
+    file_2022 = os.path.join(current_dir, "2022data6.csv")
+
+    # Load the datasets
+    data_2019 = pd.read_csv(file_2019, parse_dates=['Date'])
+    data_2022 = pd.read_csv(file_2022, parse_dates=['Date and time'])
+
+    # Figure 1: Fourier smoothing plot
+    plot_fourier_smoothed_passengers(data_2019, data_2022)
+
+    # Figure 4: Transport mode comparison and seasonal breakdown
+    seasonal_percentages = transport_type_seasonwise_plot(data_2019, data_2022)
+
+    # Figure 3: Metro trend line (assuming you have this function already)
+    plot_metro_linear_fit(data_2022)
+
+    # Figure 2: Weekday averages + seasonal annotation
+    plot_bar_avgpax_weekdays(
+        data_2019,
+        data_2022,
+        X_spring_2019=seasonal_percentages["Spring (%) for 2019"],
+        Y_summer_2019=seasonal_percentages["Summer (%) for 2019"],
+        Z_autumn_2019=seasonal_percentages["Autumn (%) for 2019"],
+        X_spring_2022=seasonal_percentages["Spring (%) for 2022"],
+        Y_summer_2022=seasonal_percentages["Summer (%) for 2022"],
+        Z_autumn_2022=seasonal_percentages["Autumn (%) for 2022"]
+    )
+
+# Standard Python script entry point
+if __name__ == "__main__":
+    main()
+
 
 
 
